@@ -1,4 +1,4 @@
-from app.schemas.endpoint import EndpointConfig, ResponseCondition
+from app.schemas.endpoint_sch import EndpointConfig, ResponseCondition
 from app.schemas.result import EndpointResult
 from app.models.application import Application
 from app.models.endpoint import Endpoint
