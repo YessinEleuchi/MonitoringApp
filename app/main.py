@@ -6,6 +6,7 @@ from app.routers import endpoints_rou, logs, stats, test , applications_rou
 app = FastAPI(title="Application de Monitoring", lifespan=lifespan)
 
 # Création des tables dans la base de données
+
 Base.metadata.create_all(bind=engine)
 
 app.include_router(endpoints_rou.router)

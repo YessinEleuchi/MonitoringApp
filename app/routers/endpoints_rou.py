@@ -7,41 +7,32 @@ from app.services import tester
 from typing import List
 from app.models.application import Application
 from traceback import print_exc
+from app.schemas.result import EndpointResult
+from fastapi import status
 
 router = APIRouter(prefix="/endpoints", tags=["Endpoints"])
 
 # 🔹 Ajouter un endpoint lié à une application
-@router.post("/", response_model=EndpointConfig)
+@router.post("/", response_model=EndpointOut)
 def create_endpoint(config: EndpointCreate, db: Session = Depends(get_db)):
     try:
-        app = db.query(Application).filter(Application.id == config.application_id).first()
-        if not app:
-            raise HTTPException(status_code=404, detail="Application not found")
+        payload = config.dict()
 
-        endpoint = Endpoint(
-    url=str(config.url),  # 🔹 transforme Url en str
-    method=config.method.value if hasattr(config.method, "value") else str(config.method),
-    headers=config.headers,
-    body=config.body,  # 🔹 None ou dict accepté (pas 'null')
-    body_format=config.body_format.value if hasattr(config.body_format, "value") else str(config.body_format),
-    auth_type=config.auth_type,
-    jwt_token=config.jwt_token,
-    auth_url=str(config.auth_url) if config.auth_url else None,
-    auth_credentials=config.auth_credentials,
-    expected_status=config.expected_status,
-    response_format=config.response_format.value if hasattr(config.response_format, "value") else str(config.response_format),
-    response_conditions=[c.dict() for c in config.response_conditions] if config.response_conditions else None,
-    application_id=config.application_id
-)
+        # ✅ conversion des Enum en str
+        payload["method"] = config.method.value
+        payload["body_format"] = config.body_format.value
+        payload["response_format"] = config.response_format.value
 
+        # ✅ conversion URL AnyHttpUrl → str
+        payload["url"] = str(config.url)
 
+        endpoint = Endpoint(**payload)
         db.add(endpoint)
         db.commit()
         db.refresh(endpoint)
-        return config
+        return endpoint
 
     except Exception as e:
-        print_exc()
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Erreur serveur : {str(e)}")
 
@@ -80,8 +71,9 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Endpoint deleted successfully"}
 
-# 🔹 Tester un endpoint existant (manuel)
-@router.post("/{endpoint_id}/test", response_model=EndpointConfig)
+
+
+@router.post("/{endpoint_id}/test", response_model=EndpointResult)
 async def test_existing_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     endpoint = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not endpoint:
@@ -90,20 +82,18 @@ async def test_existing_endpoint(endpoint_id: int, db: Session = Depends(get_db)
     config = EndpointConfig(
         url=endpoint.url,
         method=endpoint.method,
-        headers=None,
-        body=None,
-        auth_type=endpoint.auth_type,
-        jwt_token=endpoint.jwt_token,
-        auth_url=endpoint.auth_url,
-        auth_credentials=endpoint.auth_credentials,
+        headers=endpoint.headers,
+        body=endpoint.body,
+        body_format=endpoint.body_format,
         expected_status=endpoint.expected_status,
         response_format=endpoint.response_format,
-        response_conditions=endpoint.response_conditions
+        response_conditions=endpoint.response_conditions,
+        application_id=endpoint.application_id
     )
-    result = await tester.test_endpoint(config, db)
-    return result
-# 🔹 Tester un endpoint avec configuration personnalisée
-@router.post("/test", response_model=EndpointConfig)
-async def test_custom_endpoint(config: EndpointConfig, db: Session = Depends(get_db)):
-    result = await tester.test_endpoint(config, db)
-    return result
+
+    try:
+        result = await tester.test_endpoint(config, db)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur pendant test_endpoint : {str(e)}")
+
