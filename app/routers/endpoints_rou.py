@@ -6,37 +6,44 @@ from app.models.endpoint import Endpoint
 from app.services import tester
 from typing import List
 from app.models.application import Application
+from traceback import print_exc
 
 router = APIRouter(prefix="/endpoints", tags=["Endpoints"])
 
-# 🔹 Ajouter un endpoint (sans test)
 # 🔹 Ajouter un endpoint lié à une application
 @router.post("/", response_model=EndpointConfig)
 def create_endpoint(config: EndpointCreate, db: Session = Depends(get_db)):
-    app = db.query(Application).filter(Application.id == config.application_id).first()
-    if not app:
-        raise HTTPException(status_code=404, detail="Application not found")
+    try:
+        app = db.query(Application).filter(Application.id == config.application_id).first()
+        if not app:
+            raise HTTPException(status_code=404, detail="Application not found")
 
-    endpoint = Endpoint(
-        url=config.url,
-        method=config.method,
-        headers=config.headers,
-        body=config.body,
-        auth_type=config.auth_type,
-        jwt_token=config.jwt_token,
-        auth_url=config.auth_url,
-        auth_credentials=config.auth_credentials,
-        expected_status=config.expected_status,
-        response_format=config.response_format,
-        response_conditions=config.response_conditions,
-        application_id=config.application_id
-    )
+        endpoint = Endpoint(
+    url=str(config.url),  # 🔹 transforme Url en str
+    method=config.method.value if hasattr(config.method, "value") else str(config.method),
+    headers=config.headers,
+    body=config.body,  # 🔹 None ou dict accepté (pas 'null')
+    body_format=config.body_format.value if hasattr(config.body_format, "value") else str(config.body_format),
+    auth_type=config.auth_type,
+    jwt_token=config.jwt_token,
+    auth_url=str(config.auth_url) if config.auth_url else None,
+    auth_credentials=config.auth_credentials,
+    expected_status=config.expected_status,
+    response_format=config.response_format.value if hasattr(config.response_format, "value") else str(config.response_format),
+    response_conditions=[c.dict() for c in config.response_conditions] if config.response_conditions else None,
+    application_id=config.application_id
+)
 
-    db.add(endpoint)
-    db.commit()
-    db.refresh(endpoint)
 
-    return endpoint
+        db.add(endpoint)
+        db.commit()
+        db.refresh(endpoint)
+        return config
+
+    except Exception as e:
+        print_exc()
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur serveur : {str(e)}")
 
 # 🔹 Lister tous les endpoints
 @router.get("/", response_model=List[EndpointOut])

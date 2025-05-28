@@ -18,7 +18,7 @@ class Endpoint(Base):
     expected_status = Column(Integer, default=200)
     response_format = Column(String(10), default="JSON")
     response_conditions = Column(JSON, nullable=True)
-
+    
     application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
     application = relationship("Application", back_populates="endpoints")
     monitoring_results = relationship("MonitoringResult", back_populates="endpoint")
