@@ -32,6 +32,8 @@ def evaluate_conditions(response_data, conditions):
     return True, ""
 
 # 🔹 Test d’un endpoint
+# app/services/tester.py (ou similaire)
+
 async def test_endpoint(config: EndpointConfig, db: Session) -> EndpointResult:
     logger.info(f"Testing endpoint: {config.url}")
     start_time = datetime.now()
@@ -43,12 +45,12 @@ async def test_endpoint(config: EndpointConfig, db: Session) -> EndpointResult:
     headers = config.headers or {}
     body = config.body
 
-    # 🔐 Ajouter token JWT si nécessaire
+    # 🔐 Ajouter token JWT si déjà en cache
     if app.auth_type == "jwt":
-        try:
-            token = await AuthService.get_jwt_token(app)
-            headers["Authorization"] = f"Bearer {token}"
-        except Exception as e:
+        cache = AuthService.token_cache.get(app.id)
+        if cache and cache["expires_at"] > datetime.utcnow():
+            headers["Authorization"] = f"Bearer {cache['token']}"
+        else:
             return EndpointResult(
                 timestamp=start_time,
                 url=str(config.url),
@@ -56,11 +58,12 @@ async def test_endpoint(config: EndpointConfig, db: Session) -> EndpointResult:
                 status_code=0,
                 response_time=0.0,
                 success=False,
-                error_message=f"Auth error: {str(e)}"
+                error_message="No valid token found. Please authenticate first using /applications/{id}/login"
             )
 
-    # 🧾 XML format
+    # 🧾 Gérer XML si besoin
     if body and config.body_format.name == "XML":
+        import xml.etree.ElementTree as ET
         root = ET.Element("request")
         for key, value in body.items():
             elem = ET.SubElement(root, key)
@@ -75,8 +78,6 @@ async def test_endpoint(config: EndpointConfig, db: Session) -> EndpointResult:
         response_time=0.0,
         success=False
     )
-    print("🔐 Headers envoyés :", headers)
-    print("📦 Corps de la requête :", body)
 
     try:
         async with httpx.AsyncClient() as client:
@@ -105,5 +106,4 @@ async def test_endpoint(config: EndpointConfig, db: Session) -> EndpointResult:
         result.error_message = f"Request failed: {str(e)}"
 
     return result
-
 

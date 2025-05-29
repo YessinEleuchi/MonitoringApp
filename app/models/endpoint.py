@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey , Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -8,6 +8,7 @@ class Endpoint(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String(255), nullable=False)
     method = Column(String(10), nullable=False)
+    use_auth = Column(Boolean, default=True)
     headers = Column(JSON, nullable=True)
     body = Column(JSON, nullable=True)
     body_format = Column(String(10), default="JSON")

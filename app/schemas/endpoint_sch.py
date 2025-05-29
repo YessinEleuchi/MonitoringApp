@@ -13,6 +13,7 @@ class EndpointBase(BaseModel):
     url: AnyHttpUrl
     method: HttpMethod
     headers: Optional[Dict[str, str]] = None
+    use_auth: bool = True
     body: Optional[Dict] = None
     body_format: Optional[ResponseFormat] = ResponseFormat.JSON
     expected_status: int = 200
