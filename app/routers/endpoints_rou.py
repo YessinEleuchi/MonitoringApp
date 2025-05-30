@@ -5,12 +5,17 @@ from app.schemas.endpoint_sch import EndpointCreate, EndpointUpdate, EndpointOut
 from app.models.endpoint import Endpoint
 from app.services import tester
 from typing import List
-from app.models.application import Application
-from traceback import print_exc
+from app.models.monitoring_result import MonitoringResult
 from app.schemas.result import EndpointResult
-from fastapi import status
+from app.services.stats import update_application_stats
+from app.dependencies.auth import get_current_user
 
-router = APIRouter(prefix="/endpoints", tags=["Endpoints"])
+
+router = APIRouter(
+    prefix="/endpoints",
+    tags=["Endpoints"],
+    dependencies=[Depends(get_current_user)]
+)
 
 # 🔹 Ajouter un endpoint lié à une application
 @router.post("/", response_model=EndpointOut)
@@ -73,6 +78,7 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
 
 
 
+# 🔹 Tester un endpoint existant et enregistrer le résultat
 @router.post("/{endpoint_id}/test", response_model=EndpointResult)
 async def test_existing_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     endpoint = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
@@ -88,12 +94,37 @@ async def test_existing_endpoint(endpoint_id: int, db: Session = Depends(get_db)
         expected_status=endpoint.expected_status,
         response_format=endpoint.response_format,
         response_conditions=endpoint.response_conditions,
-        application_id=endpoint.application_id
+        application_id=endpoint.application_id,
+        use_auth=endpoint.use_auth
     )
 
     try:
         result = await tester.test_endpoint(config, db)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur pendant test_endpoint : {str(e)}")
 
+        # ✅ Limiter le contenu JSON (par exemple, à 50 lignes)
+        MAX_LINES = 50
+        if isinstance(result.response_content, dict):
+            for key, value in result.response_content.items():
+                if isinstance(value, list) and len(value) > MAX_LINES:
+                    result.response_content[key] = value[:MAX_LINES]
+
+        # ✅ Enregistrement dans la base
+        monitoring = MonitoringResult(
+            endpoint_id=endpoint.id,
+            timestamp=result.timestamp,
+            status_code=result.status_code,
+            response_time=result.response_time,
+            success=result.success,
+            response_content=result.response_content,
+            error_message=result.error_message
+        )
+        db.add(monitoring)
+        db.commit()
+        update_application_stats(application_id=endpoint.application_id, db=db)
+
+
+        return result
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur pendant test_endpoint : {str(e)}")

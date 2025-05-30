@@ -1,35 +1,22 @@
 # app/services/auth_service.py
-import httpx
+from passlib.context import CryptContext
 from datetime import datetime, timedelta
+import jwt
 
-class AuthService:
-    token_cache = {}  # { app_id: {"token": ..., "expires_at": datetime } }
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    @staticmethod
-    async def get_jwt_token(application, force_refresh=False) -> str:
-        cache = AuthService.token_cache.get(application.id)
-        if not force_refresh and cache and cache["expires_at"] > datetime.utcnow():
-            return cache["token"]
+SECRET_KEY = "mysecretkey"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-        if application.auth_type != "jwt":
-            return None
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.post(application.auth_url, json=application.auth_credentials)
-            response.raise_for_status()
-            data = response.json()
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
-            print("🧾 Réponse Auth complète :", data)
-
-            token = data.get("access_token") or data.get("token")
-            if not token:
-                raise ValueError("Token non trouvé dans la réponse")
-
-            expires_in = data.get("expires_in", 3300)
-            expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
-
-            AuthService.token_cache[application.id] = {
-                "token": token,
-                "expires_at": expires_at
-            }
-            return token
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + expires_delta
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

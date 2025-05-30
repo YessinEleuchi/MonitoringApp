@@ -1,17 +1,14 @@
-from app.schemas.endpoint_sch import EndpointConfig, ResponseCondition
+from app.schemas.endpoint_sch import EndpointConfig
 from app.schemas.result import EndpointResult
 from app.models.application import Application
-from app.models.endpoint import Endpoint
-from app.models.monitoring_result import MonitoringResult
-from app.models.application_stats import ApplicationStats
-from app.services.auth_service import AuthService
+from app.services.token_service import AuthService
 from app.core.logger import logger
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 from fastapi import HTTPException
 from datetime import datetime
 import httpx
 import xml.etree.ElementTree as ET
+
 
 # 🔍 Vérifie les conditions de contenu
 def evaluate_conditions(response_data, conditions):
