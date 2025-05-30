@@ -12,15 +12,22 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 def register(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
+
+    try:
+        hashed = auth_service.hash_password(user.password)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur de hash: {str(e)}")
+
     user_obj = User(
         username=user.username,
         email=user.email,
-        password_hash=auth_service.hash_password(user.password)
+        password_hash=hashed
     )
     db.add(user_obj)
     db.commit()
     db.refresh(user_obj)
     return user_obj
+
 
 from fastapi.security import OAuth2PasswordRequestForm
 

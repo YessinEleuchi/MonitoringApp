@@ -12,11 +12,16 @@ router = APIRouter(
 )
 @router.post("/", response_model=ThresholdsOut)
 def create_thresholds(data: ThresholdsCreate, db: Session = Depends(get_db)):
+    existing = db.query(Thresholds).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Seuils déjà définis. Utilisez PUT pour mettre à jour.")
+    
     thresholds = Thresholds(**data.dict())
     db.add(thresholds)
     db.commit()
     db.refresh(thresholds)
     return thresholds
+
 
 @router.get("/", response_model=ThresholdsOut)
 def get_thresholds(db: Session = Depends(get_db)):

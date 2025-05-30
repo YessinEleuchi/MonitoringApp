@@ -18,10 +18,10 @@ class AuthService:
             response = await client.post(application.auth_url, json=application.auth_credentials)
             response.raise_for_status()
             data = response.json()
-
+            print("🧾 Réponse JSON brute :", data)
             print("🧾 Réponse Auth complète :", data)
 
-            token = data.get("access_token") or data.get("token")
+            token =  data.get("token")
             if not token:
                 raise ValueError("Token non trouvé dans la réponse")
 
