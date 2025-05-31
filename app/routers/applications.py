@@ -16,24 +16,37 @@ router = APIRouter(
     tags=["Applications"],
     dependencies=[Depends(get_current_user)]
 )
-# 🔹 Créer une application
 @router.post("/", response_model=ApplicationOut)
 def create_application(data: ApplicationCreate, db: Session = Depends(get_db)):
+    # 🔒 Vérifier l'unicité de base_url
+    if db.query(Application).filter(Application.base_url == data.base_url).first():
+        raise HTTPException(status_code=409, detail="Une application avec cette URL existe déjà.")
+
+    # 🔐 Si auth_type est 'jwt', auth_url et auth_credentials doivent être fournis
+    if data.auth_type == "jwt":
+        if not data.auth_url or not data.auth_credentials:
+            raise HTTPException(
+                status_code=400,
+                detail="auth_url et auth_credentials sont obligatoires pour l'authentification JWT."
+            )
+
     try:
         payload = data.dict()
-        # ✅ Cast URL en str (Pydantic AnyHttpUrl → str)
         if payload.get("auth_url"):
-            payload["auth_url"] = str(payload["auth_url"])
+            payload["auth_url"] = str(payload["auth_url"])  # Pydantic → str
 
         app = Application(**payload)
         db.add(app)
         db.commit()
         db.refresh(app)
         return app
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Violation d'intégrité des données.")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Erreur lors de la création : {str(e)}")
-
 
 
 # 🔹 Liste des applications
@@ -49,30 +62,7 @@ def get_application(app_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Application not found")
     return app
 
-
-# 🔹 Tester tous les endpoints d’une application
-@router.post("/{app_id}/test", response_model=List[EndpointConfig])
-async def test_application_endpoints(app_id: int, db: Session = Depends(get_db)):
-    app = db.query(Application).filter(Application.id == app_id).first()
-    if not app:
-        raise HTTPException(status_code=404, detail="Application not found")
-
-    results = []
-    for ep in app.endpoints:
-        config = EndpointConfig(
-            url=ep.url,
-            method=ep.method,
-            headers=ep.headers,
-            body=ep.body,
-            body_format=ep.body_format,
-            expected_status=ep.expected_status,
-            response_format=ep.response_format,
-            response_conditions=ep.response_conditions,
-            application_id=app.id
-        )
-        result = await tester.test_endpoint(config, db)
-        results.append(result)
-    return results
+    
 # 🔹 Supprimer une application
 @router.delete("/{app_id}")
 def delete_application(app_id: int, db: Session = Depends(get_db)):
@@ -99,6 +89,3 @@ def update_application(app_id: int, data: ApplicationUpdate, db: Session = Depen
     db.commit()
     db.refresh(app)
     return app
-
-
-
