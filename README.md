@@ -100,7 +100,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 👨‍💻 Author
 
 **Yessine ELEUCHI**
-- GitHub: [@YessineELEUCHI](https://github.com/YessineELEUCHI)
+- GitHub: [@YessineELEUCHI](https://github.com/YessinEleuchi)
 
 ## 🙏 Acknowledgments
 
